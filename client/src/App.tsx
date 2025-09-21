@@ -10,6 +10,7 @@ import ThemeToggle from "@/components/ThemeToggle";
 import ITILDashboard from "@/components/ITILDashboard";
 import ITILReports from "@/components/ITILReports";
 import CIContextPanel from "@/components/CIContextPanel";
+import CIManagement from "@/components/CIManagement";
 import CITopologyMap from "@/components/CITopologyMap";
 import RelatedTicketsView from "@/components/RelatedTicketsView";
 import SLADashboard from "@/components/SLADashboard";
@@ -50,12 +51,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={() => <ITILDashboard />} />
-      <Route path="/cis" component={() => 
-        <div className="space-y-6">
-          <h1 className="text-3xl font-bold">Configuration Items</h1>
-          <CIContextPanel ci={mockCI} />
-        </div>
-      } />
+      <Route path="/cis" component={() => <CIManagement />} />
       <Route path="/topology" component={() => 
         <div className="space-y-6">
           <h1 className="text-3xl font-bold">CI Topology Map</h1>

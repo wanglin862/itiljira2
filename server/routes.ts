@@ -15,14 +15,17 @@ const validateBody = (schema: z.ZodSchema) => (req: Request, res: Response, next
     req.body = schema.parse(req.body);
     next();
   } catch (error) {
-    if (error instanceof z.ZodError) {
-      return res.status(400).json({
-        error: 'Validation failed',
-        details: error.errors
-      });
-    }
-    next(error);
+    res.status(400).json({ error: 'Invalid request body', details: error });
   }
+};
+
+// Global error handler
+const errorHandler = (error: any, req: Request, res: Response, next: Function) => {
+  console.error('API Error:', error);
+  if (res.headersSent) {
+    return next(error);
+  }
+  res.status(500).json({ error: 'Internal server error' });
 };
 
 // Helper function to calculate next run time
@@ -49,269 +52,173 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ status: 'OK', timestamp: new Date().toISOString() });
   });
 
-  // Configuration Items (CIs) Routes
+  // Configuration Items
   app.get('/api/cis', asyncHandler(async (req: Request, res: Response) => {
-    try {
-      const cis = await storage.getAllCIs();
-      res.json({ success: true, data: cis });
-    } catch (error) {
-      console.error('Error fetching CIs:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch configuration items' 
-      });
-    }
+    const cis = await storage.getAllCIs();
+    res.json({ success: true, data: cis });
   }));
 
   app.get('/api/cis/:id', asyncHandler(async (req: Request, res: Response) => {
-    try {
-      const ci = await storage.getCIById(req.params.id);
-      if (!ci) {
-        return res.status(404).json({ 
-          success: false, 
-          error: 'Configuration item not found' 
-        });
-      }
-      res.json({ success: true, data: ci });
-    } catch (error) {
-      console.error('Error fetching CI:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch configuration item' 
-      });
+    const ci = await storage.getCIById(req.params.id);
+    if (!ci) {
+      return res.status(404).json({ error: 'CI not found' });
     }
+    res.json({ success: true, data: ci });
   }));
 
-  app.post('/api/cis', 
-    validateBody(insertCISchema),
-    asyncHandler(async (req: Request, res: Response) => {
-      try {
-        const ci = await storage.insertCI(req.body);
-        res.status(201).json({ success: true, data: ci });
-      } catch (error) {
-        console.error('Error creating CI:', error);
-        res.status(500).json({ 
-          success: false, 
-          error: 'Failed to create configuration item' 
-        });
-      }
-    })
-  );
+  app.post('/api/cis', validateBody(insertCISchema), asyncHandler(async (req: Request, res: Response) => {
+    const ci = await storage.insertCI(req.body);
+    res.status(201).json({ success: true, data: ci });
+  }));
 
-  app.put('/api/cis/:id',
-    validateBody(insertCISchema.partial()),
-    asyncHandler(async (req: Request, res: Response) => {
-      try {
-        const ci = await storage.updateCI(req.params.id, req.body);
-        if (!ci) {
-          return res.status(404).json({ 
-            success: false, 
-            error: 'Configuration item not found' 
-          });
-        }
-        res.json({ success: true, data: ci });
-      } catch (error) {
-        console.error('Error updating CI:', error);
-        res.status(500).json({ 
-          success: false, 
-          error: 'Failed to update configuration item' 
-        });
-      }
-    })
-  );
+  app.put('/api/cis/:id', validateBody(insertCISchema.partial()), asyncHandler(async (req: Request, res: Response) => {
+    const ci = await storage.updateCI(req.params.id, req.body);
+    if (!ci) {
+      return res.status(404).json({ error: 'CI not found' });
+    }
+    res.json({ success: true, data: ci });
+  }));
 
   app.delete('/api/cis/:id', asyncHandler(async (req: Request, res: Response) => {
-    try {
-      const success = await storage.deleteCI(req.params.id);
-      if (!success) {
-        return res.status(404).json({ 
-          success: false, 
-          error: 'Configuration item not found' 
-        });
-      }
-      res.json({ success: true, message: 'Configuration item deleted' });
-    } catch (error) {
-      console.error('Error deleting CI:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to delete configuration item' 
-      });
+    const success = await storage.deleteCI(req.params.id);
+    if (!success) {
+      return res.status(404).json({ error: 'CI not found' });
     }
+    res.json({ success: true });
   }));
 
-  // Tickets Routes
-  app.get('/api/tickets', asyncHandler(async (req: Request, res: Response) => {
-    try {
-      const { status, priority, ciId } = req.query;
-      const filters: any = {};
-      
-      if (status) filters.status = status;
-      if (priority) filters.priority = priority;
-      if (ciId) filters.ciId = ciId;
+  // CI Relationships
+  app.get('/api/cis/:id/relationships', asyncHandler(async (req: Request, res: Response) => {
+    const relationships = await storage.getCIRelationships(req.params.id);
+    res.json({ success: true, data: relationships });
+  }));
 
-      const tickets = await storage.getTickets(filters);
-      res.json({ success: true, data: tickets });
-    } catch (error) {
-      console.error('Error fetching tickets:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch tickets' 
-      });
-    }
+  // Tickets
+  app.get('/api/tickets', asyncHandler(async (req: Request, res: Response) => {
+    const tickets = await storage.getTickets(req.query);
+    res.json({ success: true, data: tickets });
   }));
 
   app.get('/api/tickets/:id', asyncHandler(async (req: Request, res: Response) => {
-    try {
-      const ticket = await storage.getTicketById(req.params.id);
-      if (!ticket) {
-        return res.status(404).json({ 
-          success: false, 
-          error: 'Ticket not found' 
-        });
-      }
-      res.json({ success: true, data: ticket });
-    } catch (error) {
-      console.error('Error fetching ticket:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch ticket' 
-      });
+    const ticket = await storage.getTicketById(req.params.id);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
     }
+    res.json({ success: true, data: ticket });
   }));
 
-  app.post('/api/tickets',
-    validateBody(insertTicketSchema),
-    asyncHandler(async (req: Request, res: Response) => {
-      try {
-        const ticket = await storage.insertTicket(req.body);
-        res.status(201).json({ success: true, data: ticket });
-      } catch (error) {
-        console.error('Error creating ticket:', error);
-        res.status(500).json({ 
-          success: false, 
-          error: 'Failed to create ticket' 
-        });
-      }
-    })
-  );
+  app.post('/api/tickets', validateBody(insertTicketSchema), asyncHandler(async (req: Request, res: Response) => {
+    const ticket = await storage.insertTicket(req.body);
+    res.status(201).json({ success: true, data: ticket });
+  }));
 
-  app.put('/api/tickets/:id',
-    validateBody(insertTicketSchema.partial()),
-    asyncHandler(async (req: Request, res: Response) => {
-      try {
-        const ticket = await storage.updateTicket(req.params.id, req.body);
-        if (!ticket) {
-          return res.status(404).json({ 
-            success: false, 
-            error: 'Ticket not found' 
-          });
+  app.put('/api/tickets/:id', validateBody(insertTicketSchema.partial()), asyncHandler(async (req: Request, res: Response) => {
+    const ticket = await storage.updateTicket(req.params.id, req.body);
+    if (!ticket) {
+      return res.status(404).json({ error: 'Ticket not found' });
+    }
+    res.json({ success: true, data: ticket });
+  }));
+
+  // Bulk ticket operations
+  app.post('/api/tickets/bulk/:action', asyncHandler(async (req: Request, res: Response) => {
+    const { action } = req.params;
+    const { ticketIds, data } = req.body;
+
+    if (!ticketIds || !Array.isArray(ticketIds)) {
+      return res.status(400).json({ error: 'ticketIds array is required' });
+    }
+
+    let results = [];
+
+    switch (action) {
+      case 'assign':
+        if (!data.assignee) {
+          return res.status(400).json({ error: 'assignee is required for assign action' });
         }
-        res.json({ success: true, data: ticket });
-      } catch (error) {
-        console.error('Error updating ticket:', error);
-        res.status(500).json({ 
-          success: false, 
-          error: 'Failed to update ticket' 
-        });
-      }
-    })
-  );
+        for (const id of ticketIds) {
+          const ticket = await storage.updateTicket(id, { assignee: data.assignee });
+          if (ticket) results.push(ticket);
+        }
+        break;
 
-  // SLA Metrics Routes
+      case 'close':
+        for (const id of ticketIds) {
+          const ticket = await storage.updateTicket(id, { 
+            status: 'Closed',
+            resolvedAt: new Date()
+          });
+          if (ticket) results.push(ticket);
+        }
+        break;
+
+      case 'priority':
+        if (!data.priority) {
+          return res.status(400).json({ error: 'priority is required for priority action' });
+        }
+        for (const id of ticketIds) {
+          const ticket = await storage.updateTicket(id, { priority: data.priority });
+          if (ticket) results.push(ticket);
+        }
+        break;
+
+      case 'export':
+        // Mock export - in production, generate actual export file
+        const tickets = [];
+        for (const id of ticketIds) {
+          const ticket = await storage.getTicketById(id);
+          if (ticket) tickets.push(ticket);
+        }
+        
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename="tickets-export-${new Date().toISOString().split('T')[0]}.json"`);
+        return res.json({ success: true, data: tickets });
+
+      default:
+        return res.status(400).json({ error: `Unknown bulk action: ${action}` });
+    }
+
+    res.json({ 
+      success: true, 
+      data: results,
+      message: `Successfully performed ${action} on ${results.length} tickets`
+    });
+  }));
+
+  // SLA Metrics
   app.get('/api/sla-metrics', asyncHandler(async (req: Request, res: Response) => {
-    try {
-      const metrics = await storage.getSLAMetrics();
-      res.json({ success: true, data: metrics });
-    } catch (error) {
-      console.error('Error fetching SLA metrics:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch SLA metrics' 
-      });
-    }
+    const metrics = await storage.getSLAMetrics();
+    res.json({ success: true, data: metrics });
   }));
 
-  app.post('/api/sla-metrics',
-    validateBody(insertSLAMetricSchema),
-    asyncHandler(async (req: Request, res: Response) => {
-      try {
-        const metric = await storage.insertSLAMetric(req.body);
-        res.status(201).json({ success: true, data: metric });
-      } catch (error) {
-        console.error('Error creating SLA metric:', error);
-        res.status(500).json({ 
-          success: false, 
-          error: 'Failed to create SLA metric' 
-        });
-      }
-    })
-  );
+  app.post('/api/sla-metrics', validateBody(insertSLAMetricSchema), asyncHandler(async (req: Request, res: Response) => {
+    const metric = await storage.insertSLAMetric(req.body);
+    res.status(201).json({ success: true, data: metric });
+  }));
 
-  // Dashboard Data Route
+  // Dashboard data
   app.get('/api/dashboard', asyncHandler(async (req: Request, res: Response) => {
-    try {
-      const [cis, tickets, slaMetrics] = await Promise.all([
-        storage.getAllCIs(),
-        storage.getTickets({}),
-        storage.getSLAMetrics()
-      ]);
+    const [cis, tickets, slaMetrics] = await Promise.all([
+      storage.getAllCIs(),
+      storage.getTickets({}),
+      storage.getSLAMetrics()
+    ]);
 
-      const dashboardData = {
-        totalCIs: cis.length,
-        totalTickets: tickets.length,
-        openTickets: tickets.filter(t => !['Resolved', 'Closed'].includes(t.status)).length,
-        breachedSLAs: slaMetrics.filter(m => m.breached === 'true').length,
-        ticketsByStatus: tickets.reduce((acc, ticket) => {
-          acc[ticket.status] = (acc[ticket.status] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>),
-        ticketsByPriority: tickets.reduce((acc, ticket) => {
-          acc[ticket.priority] = (acc[ticket.priority] || 0) + 1;
-          return acc;
-        }, {} as Record<string, number>),
-        recentTickets: tickets.slice(0, 10),
-        recentCIs: cis.slice(0, 10)
-      };
+    const dashboardData = {
+      totalCIs: cis.length,
+      activeCIs: cis.filter(ci => ci.status === 'Active').length,
+      totalTickets: tickets.length,
+      openTickets: tickets.filter(t => ['Open', 'In Progress'].includes(t.status!)).length,
+      criticalTickets: tickets.filter(t => t.priority === 'Critical').length,
+      slaCompliance: slaMetrics.filter(m => !m.breached).length / Math.max(slaMetrics.length, 1) * 100,
+      recentTickets: tickets.slice(0, 5),
+      topAffectedCIs: cis.slice(0, 5)
+    };
 
-      res.json({ success: true, data: dashboardData });
-    } catch (error) {
-      console.error('Error fetching dashboard data:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch dashboard data' 
-      });
-    }
+    res.json({ success: true, data: dashboardData });
   }));
 
-  // CI Relationships Routes
-  app.get('/api/cis/:id/relationships', asyncHandler(async (req: Request, res: Response) => {
-    try {
-      const relationships = await storage.getCIRelationships(req.params.id);
-      res.json({ success: true, data: relationships });
-    } catch (error) {
-      console.error('Error fetching CI relationships:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch CI relationships' 
-      });
-    }
-  }));
-
-  // Tickets related to CI
-  app.get('/api/cis/:id/tickets', asyncHandler(async (req: Request, res: Response) => {
-    try {
-      const tickets = await storage.getTickets({ ciId: req.params.id });
-      res.json({ success: true, data: tickets });
-    } catch (error) {
-      console.error('Error fetching CI tickets:', error);
-      res.status(500).json({ 
-        success: false, 
-        error: 'Failed to fetch tickets for CI' 
-      });
-    }
-  }));
-
-  // ITIL Reporting Routes
+  // ITIL Reports
   app.get('/api/reports/incident', asyncHandler(async (req: Request, res: Response) => {
     try {
       const { startDate, endDate } = req.query;
@@ -672,6 +579,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   }));
+
+  // Use error handler
+  app.use(errorHandler);
 
   const httpServer = createServer(app);
 

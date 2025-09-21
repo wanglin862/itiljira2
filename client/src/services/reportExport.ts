@@ -375,3 +375,4 @@ export class ReportExportService {
 }
 
 export const reportExportService = ReportExportService.getInstance();
+

@@ -139,6 +139,8 @@ export default function CITopologyMap({
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [isPanning, setIsPanning] = useState(false);
+  const [impactAnalysisMode, setImpactAnalysisMode] = useState(false);
+  const [highlightedPaths, setHighlightedPaths] = useState<string[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -236,6 +238,53 @@ export default function CITopologyMap({
     const matchesType = filteredTypes.length === 0 || filteredTypes.includes(ci.type);
     return matchesSearch && matchesType;
   });
+
+  // Impact Analysis Functions
+  const analyzeImpact = useCallback((nodeId: string): string[] => {
+    const impactedNodes: string[] = [];
+    const visited = new Set<string>();
+    
+    const traverse = (currentId: string, depth: number = 0) => {
+      if (visited.has(currentId) || depth > 3) return; // Prevent infinite loops and limit depth
+      
+      visited.add(currentId);
+      impactedNodes.push(currentId);
+      
+      // Find all nodes that depend on current node
+      links.forEach(link => {
+        if (link.source === currentId && link.type === 'depends_on') {
+          traverse(link.target, depth + 1);
+        }
+        if (link.target === currentId && link.type === 'hosted_on') {
+          traverse(link.source, depth + 1);
+        }
+      });
+    };
+    
+    traverse(nodeId);
+    return impactedNodes;
+  }, [links]);
+
+  const toggleImpactAnalysis = () => {
+    if (impactAnalysisMode) {
+      setImpactAnalysisMode(false);
+      setHighlightedPaths([]);
+    } else {
+      setImpactAnalysisMode(true);
+      if (selectedNode) {
+        const impactedNodes = analyzeImpact(selectedNode);
+        setHighlightedPaths(impactedNodes);
+      }
+    }
+  };
+
+  // Update impact analysis when selected node changes
+  useEffect(() => {
+    if (impactAnalysisMode && selectedNode) {
+      const impactedNodes = analyzeImpact(selectedNode);
+      setHighlightedPaths(impactedNodes);
+    }
+  }, [selectedNode, impactAnalysisMode, analyzeImpact]);
 
   // Enhanced layout algorithms
   const calculateLayout = useCallback((): { nodes: TopologyNode[], links: TopologyLink[] } => {
@@ -342,6 +391,8 @@ export default function CITopologyMap({
   const renderNode = (node: TopologyNode) => {
     const isSelected = selectedNode === node.id;
     const isDragging = draggedNode === node.id;
+    const isHighlighted = impactAnalysisMode && highlightedPaths.includes(node.id);
+    const isImpactSource = impactAnalysisMode && selectedNode === node.id;
     
     return (
       <TooltipProvider key={node.id}>
@@ -351,8 +402,13 @@ export default function CITopologyMap({
               className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-200 hover:scale-110 ${
                 isSelected ? "ring-4 ring-primary ring-opacity-50" : ""
               } ${isDragging ? "scale-110 shadow-2xl" : ""} ${
+                isImpactSource ? "ring-4 ring-red-500 ring-opacity-75" : 
+                isHighlighted ? "ring-2 ring-orange-500 ring-opacity-50" : ""
+              } ${
                 getStatusColor(node.ci.status)
-              } border-2 rounded-xl p-3 min-w-[100px] backdrop-blur-sm hover:shadow-lg`}
+              } border-2 rounded-xl p-3 min-w-[100px] backdrop-blur-sm hover:shadow-lg ${
+                impactAnalysisMode && !isHighlighted ? "opacity-50" : ""
+              } ${isHighlighted ? "animate-pulse" : ""}`}
               style={{
                 left: `${(node.x + panOffset.x) * zoomLevel}px`,
                 top: `${(node.y + panOffset.y) * zoomLevel}px`,
@@ -472,6 +528,17 @@ export default function CITopologyMap({
               {showLabels ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
             </Button>
 
+            {/* Impact Analysis Toggle */}
+            <Button
+              variant={impactAnalysisMode ? "default" : "outline"}
+              size="sm"
+              onClick={toggleImpactAnalysis}
+              className="p-2"
+              disabled={!selectedNode}
+            >
+              <Target className="w-4 h-4" />
+            </Button>
+
             {/* Zoom Controls */}
             <div className="flex items-center gap-1 border rounded-md">
               <Button variant="ghost" size="sm" onClick={zoomOut} className="p-2">
@@ -572,6 +639,10 @@ export default function CITopologyMap({
               const color = getRelationshipColor(link.type);
               const strokeWidth = (link.strength || 0.5) * 4 + 1;
               
+              // Check if this link should be highlighted for impact analysis
+              const isHighlighted = impactAnalysisMode && 
+                (highlightedPaths.includes(link.source) && highlightedPaths.includes(link.target));
+              
               return (
                 <g key={index}>
                   <line
@@ -579,11 +650,12 @@ export default function CITopologyMap({
                     y1={(sourceNode.y + panOffset.y) * zoomLevel}
                     x2={(targetNode.x + panOffset.x) * zoomLevel}
                     y2={(targetNode.y + panOffset.y) * zoomLevel}
-                    stroke={color}
-                    strokeWidth={strokeWidth}
+                    stroke={isHighlighted ? "#ef4444" : color}
+                    strokeWidth={isHighlighted ? strokeWidth + 2 : strokeWidth}
                     strokeDasharray={link.type === "depends_on" ? "8,4" : "none"}
                     markerEnd="url(#arrowhead)"
-                    opacity={0.7}
+                    opacity={isHighlighted ? 1 : (impactAnalysisMode ? 0.3 : 0.7)}
+                    className={isHighlighted ? "animate-pulse" : ""}
                   />
                   
                   {/* Relationship label */}
@@ -608,24 +680,79 @@ export default function CITopologyMap({
           {/* CI Nodes */}
           {nodes.map(renderNode)}
 
-          {/* Mini-map */}
-          <div className="absolute top-4 right-4 w-32 h-24 border rounded bg-background/80 backdrop-blur-sm">
-            <div className="text-xs p-1 text-center font-medium border-b">Mini Map</div>
-            <div className="relative h-16">
+          {/* Enhanced Mini-map */}
+          <div className="absolute top-4 right-4 w-40 h-32 border rounded bg-background/90 backdrop-blur-sm shadow-lg">
+            <div className="text-xs p-2 text-center font-medium border-b bg-muted/50">
+              Mini Map ({nodes.length} CIs)
+            </div>
+            <div className="relative h-24 p-1 overflow-hidden">
+              {/* Mini-map connections */}
+              <svg className="absolute inset-0 w-full h-full">
+                {links.map((link, index) => {
+                  const sourceNode = nodes.find(n => n.id === link.source);
+                  const targetNode = nodes.find(n => n.id === link.target);
+                  
+                  if (!sourceNode || !targetNode) return null;
+                  
+                  return (
+                    <line
+                      key={index}
+                      x1={`${(sourceNode.x / 600) * 100}%`}
+                      y1={`${(sourceNode.y / 400) * 100}%`}
+                      x2={`${(targetNode.x / 600) * 100}%`}
+                      y2={`${(targetNode.y / 400) * 100}%`}
+                      stroke="hsl(var(--muted-foreground))"
+                      strokeWidth="0.5"
+                      opacity="0.3"
+                    />
+                  );
+                })}
+              </svg>
+              
+              {/* Mini-map nodes */}
               {nodes.map(node => (
-                <div
-                  key={`mini-${node.id}`}
-                  className={`absolute w-1 h-1 rounded-full transform -translate-x-1/2 -translate-y-1/2 ${
-                    node.ci.status === "Active" ? "bg-green-500" :
-                    node.ci.status === "Maintenance" ? "bg-yellow-500" :
-                    node.ci.status === "Degraded" ? "bg-orange-500" : "bg-red-500"
-                  }`}
-                  style={{
-                    left: `${(node.x / 600) * 100}%`,
-                    top: `${(node.y / 400) * 100}%`
-                  }}
-                />
+                <TooltipProvider key={`mini-${node.id}`}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className={`absolute w-2 h-2 rounded-full transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all hover:scale-150 border ${
+                          node.ci.status === "Active" || node.ci.status === "Operational" ? "bg-green-500 border-green-600" :
+                          node.ci.status === "Maintenance" ? "bg-yellow-500 border-yellow-600" :
+                          node.ci.status === "Degraded" ? "bg-orange-500 border-orange-600" : "bg-red-500 border-red-600"
+                        } ${selectedNode === node.id ? "ring-2 ring-primary" : ""}`}
+                        style={{
+                          left: `${(node.x / 600) * 100}%`,
+                          top: `${(node.y / 400) * 100}%`
+                        }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedNode(node.id);
+                          onCIClick(node.ci);
+                          // Pan to node in main view
+                          const newPanX = (300 - node.x) * 0.5;
+                          const newPanY = (200 - node.y) * 0.5;
+                          setPanOffset({ x: newPanX, y: newPanY });
+                        }}
+                      />
+                    </TooltipTrigger>
+                    <TooltipContent side="left" className="text-xs">
+                      <div>{node.ci.name}</div>
+                      <div className="text-muted-foreground">{node.ci.status}</div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               ))}
+              
+              {/* Viewport indicator */}
+              <div 
+                className="absolute border border-primary/50 bg-primary/10 pointer-events-none"
+                style={{
+                  left: `${Math.max(0, -panOffset.x / 6)}%`,
+                  top: `${Math.max(0, -panOffset.y / 4)}%`,
+                  width: `${Math.min(100, 100 / zoomLevel)}%`,
+                  height: `${Math.min(100, 100 / zoomLevel)}%`
+                }}
+              />
             </div>
           </div>
         </div>
