@@ -1,0 +1,236 @@
+<atlassian-plugin key="com.example.itil.enhanced"
+                  name="ITIL Flow Helper Enhanced"
+                  plugins-version="2">
+  <plugin-info>
+    <description>Enhanced ITIL Flow Helper with security, performance and advanced features</description>
+    <version>2.0.0</version>
+    <vendor name="Your Company" url="https://yourcompany.com"/>
+    <param name="plugin-icon">images/pluginIcon.png</param>
+    <param name="plugin-logo">images/pluginLogo.png</param>
+    <param name="plugin-banner">images/pluginBanner.png</param>
+  </plugin-info>
+
+  <!-- 🔒 SECURITY: Plugin configuration for secure settings -->
+  <component-import key="pluginSettingsFactory" interface="com.atlassian.sal.api.pluginsettings.PluginSettingsFactory"/>
+  <component-import key="userManager" interface="com.atlassian.sal.api.user.UserManager"/>
+  <component-import key="loginUriProvider" interface="com.atlassian.sal.api.auth.LoginUriProvider"/>
+  <component-import key="templateRenderer" interface="com.atlassian.templaterenderer.TemplateRenderer"/>
+
+  <!-- 🔧 SERVICES: Enhanced service components -->
+  <component key="issueCreatorService" 
+             class="com.example.itil.service.IssueCreatorService"
+             public="true">
+    <description>Enhanced service for creating ITIL issues</description>
+  </component>
+  
+  <component key="linkingService" 
+             class="com.example.itil.service.LinkingService"
+             public="true">
+    <description>Enhanced service for linking ITIL issues</description>
+  </component>
+  
+  <component key="slaScheduler" 
+             class="com.example.itil.sla.SlaEscalationScheduler"
+             public="true">
+    <description>Enhanced SLA monitoring and escalation</description>
+  </component>
+
+  <!-- 🔒 SECURITY: Authentication and validation services -->
+  <component key="webhookAuthService" 
+             class="com.example.itil.security.WebhookAuthenticationService"
+             public="true">
+    <description>Webhook authentication and security service</description>
+  </component>
+  
+  <component key="webhookValidator" 
+             class="com.example.itil.validation.WebhookValidator"
+             public="true">
+    <description>Webhook request validation service</description>
+  </component>
+
+  <!-- 🌐 REST: Enhanced REST resource with security -->
+  <rest name="ITIL REST Enhanced" key="itil-rest-enhanced" path="/itil/v2" version="2.0">
+    <description>Enhanced ITIL REST API with security and validation</description>
+    <resource>com.example.itil.rest.WebhookResource</resource>
+    <resource>com.example.itil.rest.ConfigurationResource</resource>
+    <resource>com.example.itil.rest.HealthCheckResource</resource>
+  </rest>
+
+  <!-- 🎫 WEB ITEMS: Enhanced web items with better conditions -->
+  <web-item key="create-change-enhanced" 
+            section="jira.issue.tools" 
+            weight="25">
+    <label key="itil.create.change.enhanced"/>
+    <description key="itil.create.change.enhanced.desc"/>
+    <link>/plugins/servlet/itil-create-change?problemId=$issue.id</link>
+    <condition class="com.atlassian.jira.plugin.webfragment.conditions.UserHasProjectsCondition"/>
+    <condition class="com.example.itil.conditions.IsProblemIssueCondition"/>
+    <condition class="com.example.itil.conditions.CanCreateChangeCondition"/>
+    <styleClass>aui-icon aui-icon-small aui-iconfont-devtools-task-add</styleClass>
+  </web-item>
+
+  <web-item key="view-ci-details" 
+            section="jira.issue.tools" 
+            weight="26">
+    <label key="itil.view.ci.details"/>
+    <description key="itil.view.ci.details.desc"/>
+    <link>/plugins/servlet/itil-ci-details?issueId=$issue.id</link>
+    <condition class="com.example.itil.conditions.HasCILinkedCondition"/>
+    <styleClass>aui-icon aui-icon-small aui-iconfont-devtools-repository</styleClass>
+  </web-item>
+
+  <!-- 🎛️ SERVLETS: Enhanced servlets with security -->
+  <servlet key="create-change-servlet-enhanced"
+           name="Enhanced Create ITIL Change Servlet"
+           class="com.example.itil.servlet.CreateChangeServlet">
+    <description>Enhanced servlet for creating change requests from problems</description>
+    <url-pattern>/itil-create-change</url-pattern>
+  </servlet>
+
+  <servlet key="ci-details-servlet"
+           name="CI Details Servlet"
+           class="com.example.itil.servlet.CIDetailsServlet">
+    <description>Servlet for displaying CI details and relationships</description>
+    <url-pattern>/itil-ci-details</url-pattern>
+  </servlet>
+
+  <servlet key="plugin-config-servlet"
+           name="Plugin Configuration Servlet"
+           class="com.example.itil.servlet.PluginConfigurationServlet">
+    <description>Plugin configuration management servlet</description>
+    <url-pattern>/itil-config</url-pattern>
+  </servlet>
+
+  <!-- 📊 WEB PANELS: Enhanced CI context panel -->
+  <web-panel key="ci-panel-enhanced"
+             location="atl.jira.view.issue.right.context"
+             weight="200">
+    <label key="itil.ci.panel.title.enhanced"/>
+    <description key="itil.ci.panel.desc.enhanced"/>
+    <context-provider class="com.example.itil.context.CIContextProvider"/>
+    <resource name="view" type="velocity" location="templates/ci-panel-enhanced.vm"/>
+    <condition class="com.example.itil.conditions.HasCILinkedCondition"/>
+  </web-panel>
+
+  <web-panel key="sla-panel"
+             location="atl.jira.view.issue.right.context"
+             weight="201">
+    <label key="itil.sla.panel.title"/>
+    <description key="itil.sla.panel.desc"/>
+    <context-provider class="com.example.itil.context.SLAContextProvider"/>
+    <resource name="view" type="velocity" location="templates/sla-panel.vm"/>
+    <condition class="com.example.itil.conditions.IsITILIssueCondition"/>
+  </web-panel>
+
+  <!-- ⚡ WORKFLOW: Enhanced workflow functions -->
+  <workflow-function key="close-related-postfn-enhanced"
+                     name="Enhanced Close Related Issues"
+                     class="com.example.itil.workflow.CloseRelatedIssuesPostFunction">
+    <description>Enhanced post-function to close related incidents/problems when change succeeds</description>
+    <resource name="view" type="velocity" location="templates/workflow/close-related-input.vm"/>
+    <resource name="input-parameters" type="velocity" location="templates/workflow/close-related-input.vm"/>
+    <resource name="edit-parameters" type="velocity" location="templates/workflow/close-related-input.vm"/>
+  </workflow-function>
+
+  <workflow-function key="sla-escalation-postfn"
+                     name="SLA Escalation Function"
+                     class="com.example.itil.workflow.SLAEscalationPostFunction">
+    <description>Post-function to handle SLA escalations</description>
+    <resource name="view" type="velocity" location="templates/workflow/sla-escalation-input.vm"/>
+    <resource name="input-parameters" type="velocity" location="templates/workflow/sla-escalation-input.vm"/>
+    <resource name="edit-parameters" type="velocity" location="templates/workflow/sla-escalation-input.vm"/>
+  </workflow-function>
+
+  <!-- 🎨 WEB SECTIONS: Plugin administration -->
+  <web-section key="itil-admin-section" 
+               name="ITIL Administration" 
+               location="admin_plugins_menu" 
+               weight="100">
+    <label key="itil.admin.section"/>
+    <description key="itil.admin.section.desc"/>
+  </web-section>
+
+  <web-item key="itil-admin-config" 
+            section="admin_plugins_menu/itil-admin-section" 
+            weight="10">
+    <label key="itil.admin.config"/>
+    <description key="itil.admin.config.desc"/>
+    <link>/plugins/servlet/itil-config</link>
+    <condition class="com.atlassian.jira.plugin.webfragment.conditions.UserIsAdminCondition"/>
+  </web-item>
+
+  <!-- 📝 CUSTOM FIELDS: Enhanced custom field types -->
+  <customfield-type key="ci-selector-field"
+                    name="CI Selector Field"
+                    class="com.example.itil.customfields.CISelectorCustomFieldType">
+    <description>Enhanced CI selector with validation and autocomplete</description>
+    <resource name="view" type="velocity" location="templates/customfields/ci-selector-view.vm"/>
+    <resource name="edit" type="velocity" location="templates/customfields/ci-selector-edit.vm"/>
+  </customfield-type>
+
+  <!-- 🔍 CUSTOM FIELD SEARCHERS -->
+  <customfield-searcher key="ci-selector-searcher"
+                        name="CI Selector Searcher"
+                        class="com.example.itil.customfields.CISelectorSearcher">
+    <description>Searcher for CI selector custom field</description>
+    <resource name="search" type="velocity" location="templates/customfields/ci-selector-search.vm"/>
+    <resource name="view" type="velocity" location="templates/customfields/ci-selector-search-view.vm"/>
+    <valid-customfield-type package-key="${project.groupId}.${project.artifactId}" key="ci-selector-field"/>
+  </customfield-searcher>
+
+  <!-- 📋 CONDITIONS: Custom conditions for web items -->
+  <condition key="is-problem-issue" 
+             class="com.example.itil.conditions.IsProblemIssueCondition">
+    <description>Condition to check if current issue is a Problem</description>
+  </condition>
+
+  <condition key="has-ci-linked" 
+             class="com.example.itil.conditions.HasCILinkedCondition">
+    <description>Condition to check if issue has CI linked</description>
+  </condition>
+
+  <condition key="can-create-change" 
+             class="com.example.itil.conditions.CanCreateChangeCondition">
+    <description>Condition to check if user can create change requests</description>
+  </condition>
+
+  <condition key="is-itil-issue" 
+             class="com.example.itil.conditions.IsITILIssueCondition">
+    <description>Condition to check if issue is an ITIL issue type</description>
+  </condition>
+
+  <!-- 🌍 INTERNATIONALIZATION -->
+  <resource type="i18n" name="i18n" location="com.example.itil.i18n.itil-plugin"/>
+
+  <!-- 🎨 STATIC RESOURCES -->
+  <web-resource key="itil-plugin-resources">
+    <description>ITIL Plugin Resources</description>
+    <resource type="download" name="images/" location="/images"/>
+    <resource type="download" name="css/itil-plugin.css" location="/css/itil-plugin.css"/>
+    <resource type="download" name="js/itil-plugin.js" location="/js/itil-plugin.js"/>
+    <context>jira.view.issue</context>
+    <context>jira.edit.issue</context>
+  </web-resource>
+
+  <!-- 📊 JOB RUNNER: Scheduled tasks -->
+  <component key="slaEscalationJobRunner"
+             class="com.example.itil.jobs.SLAEscalationJobRunner"
+             public="true">
+    <description>Job runner for SLA escalation monitoring</description>
+  </component>
+
+  <!-- 🔔 EVENT LISTENERS: Issue events -->
+  <listener key="itil-issue-event-listener"
+            class="com.example.itil.listeners.ITILIssueEventListener">
+    <description>Listener for ITIL-related issue events</description>
+  </listener>
+
+  <!-- 🎯 GADGETS: Dashboard gadgets -->
+  <gadget key="itil-dashboard-gadget"
+          name="ITIL Dashboard"
+          location="com.example.itil.gadgets.ITILDashboardGadget">
+    <description>Dashboard gadget showing ITIL metrics and status</description>
+    <resource name="view" type="velocity" location="templates/gadgets/itil-dashboard.vm"/>
+  </gadget>
+
+</atlassian-plugin>

@@ -1,0 +1,38 @@
+<project>
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>jira-ci-plugin</artifactId>
+  <version>1.0.0</version>
+  <packaging>atlassian-plugin</packaging>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.atlassian.jira</groupId>
+      <artifactId>jira-api</artifactId>
+      <version>${jira.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>com.atlassian.sal</groupId>
+      <artifactId>sal-api</artifactId>
+      <version>5.0.0</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.json</groupId>
+      <artifactId>json</artifactId>
+      <version>20240303</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>com.atlassian.maven.plugins</groupId>
+        <artifactId>jira-maven-plugin</artifactId>
+        <version>8.3.6</version>
+        <extensions>true</extensions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

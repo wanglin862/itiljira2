@@ -1,0 +1,49 @@
+<atlassian-plugin key="com.example.itil"
+                  name="ITIL Flow Helper"
+                  plugins-version="2">
+  <plugin-info>
+    <description>Incident → Problem → Change automation sample</description>
+    <version>1.0.0</version>
+    <vendor name="You"/>
+  </plugin-info>
+
+  <!-- REST resource to accept monitoring webhook -->
+  <rest name="ITIL REST" key="itil-rest" path="/itil" version="1.0">
+    <resource>com.example.itil.rest.WebhookResource</resource>
+  </rest>
+
+  <!-- Web item to create Change from Problem view -->
+  <web-item key="create-change" section="jira.issue.tools" weight="25">
+    <label key="itil.create.change"/>
+    <link>/plugins/servlet/itil-create-change?problemId=$issue.id</link>
+    <condition class="com.atlassian.jira.plugin.webfragment.conditions.UserHasProjectsCondition"/>
+  </web-item>
+
+  <!-- Servlet to handle web-item action -->
+  <servlet key="create-change-servlet"
+           name="Create ITIL Change Servlet"
+           class="com.example.itil.servlet.CreateChangeServlet">
+    <url-pattern>/itil-create-change</url-pattern>
+  </servlet>
+
+  <!-- Web panel: show CI details on issue -->
+  <web-panel key="ci-panel"
+             location="atl.jira.view.issue.right.context"
+             weight="200">
+    <label key="itil.ci.panel.title"/>
+    <context-provider class="com.example.itil.context.CIContextProvider"/>
+    <resource name="view" type="velocity" location="templates/ci-panel.vm"/>
+  </web-panel>
+
+  <!-- Workflow post-function module (close related issues) -->
+  <workflow-function key="close-related-postfn"
+                     name="Close related incidents/problems"
+                     class="com.example.itil.workflow.CloseRelatedIssuesPostFunction">
+    <description>Close linked Incidents/Problems when Change succeeds</description>
+  </workflow-function>
+
+  <!-- components (optional) -->
+  <component key="issueCreator" class="com.example.itil.service.IssueCreatorService"/>
+  <component key="linkingService" class="com.example.itil.service.LinkingService"/>
+  <component key="slaScheduler" class="com.example.itil.sla.SlaEscalationScheduler"/>
+</atlassian-plugin>

@@ -1,0 +1,14 @@
+#if ($ciName)
+  <div class="module">
+    <h3>$ciName</h3>
+    <p><b>Location:</b> $ciLocation</p>
+    #if ($ciJson)
+      <p><b>IP:</b> $ciJson.ip</p>
+      <p><b>OS:</b> $ciJson.os</p>
+      <p><a href="$ciJson.cmdbUrl">View in CMDB</a></p>
+    #end
+    <p><a href="/issues/?jql=cf[\"CI\"]~\"$ciName\"">All related tickets</a></p>
+  </div>
+#else
+  <div class="module"><em>No CI linked</em></div>
+#end
